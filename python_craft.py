@@ -2,18 +2,19 @@ class Entite:
     """
     une entité (joueur, animal, créature...)
     """
-    def __init__(self, coordonnees:tuple, vie:int, degat:int, ceinture:list):
+    def __init__(self, coordonnees:tuple=(0,0), vie:int=None, degat:int=None, ceinture:list=[]):
         """
         Constructeur de la classe Entité.
         * coordonnees (tuple) : coordoonnees x / y de l'entité dans le monde
         * vie (int) : nombre de points de vie actuels (pas le maximum)
         * degat (int) : nombre de degats infligés par l'entité par défaut (sans arme en main)
-        * ceinture (list) : liste de 5 'items' accessibles en main par l'entite
+        * ceinture (list) : liste de 6 'items' accessibles en main par l'entite
         """
         self.coordonnees = coordonnees
         self.vie = vie
         self.degat = degat
         self.ceinture = ceinture
+        self.main = 0
 
     def get_coordonnees(self):
         """ Retourne la valeur de l'attribut coordonnees de l'entité. """
@@ -43,36 +44,49 @@ class Entite:
         return self.ceinture
 
     def set_ceinture(self, slot:int, item):
-        """ Remplace l'item à l'emplacement de numéro slot de ceinture par item. """
+        """ Remplace l'item à l'emplacement d'index {slot} (de la ceinture) par {item}. """
         self.ceinture[slot] = item
 
+    def get_main(self):
+        """ Retourne la valeur de l'attribut main de l'entité. """
+        return self.main
+
+    def set_main(self, glissement):
+        """ Remplace l'index de la ceinture actuellement en main. """
+        if glissement > 0:
+            while (self.get_main + glissement) > 6:
+                glissement -= 6
+            self.main = glissement-1
+
+        else:
+            pass
+            # TODO: trouver comment faire l'algo du glissement négatif (de droite à gauche)
 
     def attaque(self, victime):
-        if isinstance(self.ceinture[0], Arme):
-            victime.set_vie(victime.get_vie() - self.ceinture[0].degat)
+        if isinstance(self.ceinture[self.get_main].degat, Arme):
+            victime.set_vie(victime.get_vie() - self.ceinture[self.get_main].degat)
         else:
             victime.set_vie(victime.get_vie() - self.degat)
 
 
 
-
-
-
-
-
-
-
+#class Nom(AutreClasse) fait hériter Nom de toutes les propriétés de AutreClasse
 class Joueur(Entite):
     """
     le joueur
     """
-    def __init__(self, coordonnees:tuple, vie:int, degat:int, ceinture:list):
+    def __init__(self, coordonnees:tuple=(0,0), vie:int=100, degat:int=10, ceinture:list=[], sac:list=[]):
         """
         Constructeur de joueur.
+        * coordonnees (tuple) : coordoonnées x / y du joueur dans le monde
+        * vie (int) : nombre de points de vie actuels (pas le maximum)
+        * degat (int) : nombre de degats infligés par le joueur par défaut (sans arme en main)
+        * ceinture (list) : liste de 6 'items' accessibles en main par le joueur
+        * sac (list) : liste de tous les 'items' dans l'inventaire du joueur
         """
+        # pour bien transmettre les paramètres passés dans Joueur dans ceux hérités de Entite
         super().__init__(coordonnees, vie, degat, ceinture)
-
-
+        self.sac    = sac
 
     def poser_bloc(self):
         pass
@@ -80,6 +94,8 @@ class Joueur(Entite):
 
 class Arme:
     pass
+
+
 ################################################################################
 
 joueur = Joueur((0, 0), 100, 5, ['air' for _ in range(0, 5)])
