@@ -2,7 +2,7 @@ class Entite:
     """
     une entité (joueur, animal, créature...)
     """
-    def __init__(self, coordonnees:tuple=(0,0), vie:int=None, degat:int=None, ceinture:list=[]):
+    def __init__(self, coordonnees:tuple=(0,0), vie:int=None, degat:int=None, ceinture:list=[], main:int=0):
         """
         Constructeur de la classe Entité.
         * coordonnees (tuple) : coordoonnees x / y de l'entité dans le monde
@@ -53,18 +53,21 @@ class Entite:
 
     def set_main(self, glissement):
         """ Remplace l'index de la ceinture actuellement en main. """
-        if glissement > 0:
-            while (self.get_main + glissement) > 6:
-                glissement -= 6
-            self.main = glissement-1
+        if glissement < 0:
+            negatif= True               # 
+            glissement= -1*glissement   # passe le glissement en positif pour le calcul
 
+        while (self.get_main() + glissement) > 6:
+            glissement -= 6
+
+        if negatif:
+            self.main = 6 - glissement
         else:
-            pass
-            # TODO: trouver comment faire l'algo du glissement négatif (de droite à gauche)
+            self.main = glissement
 
     def attaque(self, victime):
-        if isinstance(self.ceinture[self.get_main].degat, Arme):
-            victime.set_vie(victime.get_vie() - self.ceinture[self.get_main].degat)
+        if isinstance(self.ceinture[self.get_main()], Arme):
+            victime.set_vie(victime.get_vie() - self.ceinture[self.get_main()].degat)
         else:
             victime.set_vie(victime.get_vie() - self.degat)
 
@@ -77,10 +80,10 @@ class Joueur(Entite):
     """
     def __init__(self, coordonnees:tuple=(0,0), vie:int=100, degat:int=10, ceinture:list=[], sac:list=[]):
         """
-        Constructeur de joueur.
+        Constructeur de la classe Joueur.
         * coordonnees (tuple) : coordoonnées x / y du joueur dans le monde
         * vie (int) : nombre de points de vie actuels (pas le maximum)
-        * degat (int) : nombre de degats infligés par le joueur par défaut (sans arme en main)
+        * degat (int) : nombre de dégâts infligés par le joueur par défaut (sans arme en main)
         * ceinture (list) : liste de 6 'items' accessibles en main par le joueur
         * sac (list) : liste de tous les 'items' dans l'inventaire du joueur
         """
@@ -93,15 +96,25 @@ class Joueur(Entite):
 
 
 class Arme:
-    pass
+    """
+    une arme
+    """
+    def __init__(self, degat:int, texture:str='./textures/missing.png'):
+        """
+        Constructeur de la classe Arme.
+        * degat (int) : nombre de dégâts infligés par l'arme
+        * texture (str) : chemin d'accès à la texture de l'arme
+        """
+        self.degat  = degat
+        self.texture= texture
 
 
 ################################################################################
 
-joueur = Joueur((0, 0), 100, 5, ['air' for _ in range(0, 5)])
-monstre = Joueur((0, 0), 50, 10, ['air' for _ in range(0, 5)])
+joueur  = Joueur((0, 0), 100, 5, ['air' for _ in range(0, 6)])
+monstre = Entite((0,0), 50, 10, [Arme(20)])
+epee    = Arme(20)
 
 ################################################################################
 
-# voir ceinture pour changr slot en main:
-# attribut main qui réfère a un slot de la ceinture
+# TODO: line 102 (class Arme / def init) –> gérer texture avec Tkinter
