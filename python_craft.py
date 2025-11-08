@@ -71,8 +71,6 @@ class Entite:
         else:
             victime.set_vie(victime.get_vie() - self.degat)
 
-
-
 #class Nom(AutreClasse) fait hériter Nom de toutes les propriétés de AutreClasse
 class Joueur(Entite):
     """
