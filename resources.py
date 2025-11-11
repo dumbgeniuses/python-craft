@@ -5,7 +5,7 @@ class Entite:
     def __init__(self, coordonnees:tuple=(0,0), vie:int=None, degat:int=None, ceinture:list=[], main:int=0):
         """
         Constructeur de la classe Entité.
-        * coordonnees (tuple) : coordoonnees x / y de l'entité dans le monde
+        * coordonnees (tuple) : coordonnees x / y de l'entité dans le monde
         * vie (int) : nombre de points de vie actuels (pas le maximum)
         * degat (int) : nombre de degats infligés par l'entité par défaut (sans arme en main)
         * ceinture (list) : liste de 6 'items' accessibles en main par l'entite
@@ -79,7 +79,7 @@ class Joueur(Entite):
     def __init__(self, coordonnees:tuple=(0,0), vie:int=100, degat:int=10, ceinture:list=[], sac:list=[]):
         """
         Constructeur de la classe Joueur.
-        * coordonnees (tuple) : coordoonnées x / y du joueur dans le monde
+        * coordonnees (tuple) : coordonnées x / y du joueur dans le monde
         * vie (int) : nombre de points de vie actuels (pas le maximum)
         * degat (int) : nombre de dégâts infligés par le joueur par défaut (sans arme en main)
         * ceinture (list) : liste de 6 'items' accessibles en main par le joueur
@@ -91,6 +91,28 @@ class Joueur(Entite):
 
     def poser_bloc(self):
         pass
+
+    def verification_ennemis(self, ennemis:list=[]):
+        """
+        Retourne la liste de tous les ennemis qui voient le joueur, ou None si aucune.
+        Fonction utilisée automatiquement à chaque déplacement du joueur.
+        * ennemis (list) : liste de toutes les entités hostiles dans le monde
+        """
+        # vérifier si blocks entre joueur et entité :
+        #   si oui, passer à la suivante, sinon passer à la vérif suivante
+        # vérifier si distance joueur-entité est 7 ou plus :
+        #   si oui, passer à la suivante, sinon passer à la vérif suivante
+        ennemis_proches = []
+
+        for entite in ennemis:
+            # si il n'y a pas de blocks entre le joueur et l'ennemi
+            if not presence_block(self.coordonnees, entite.coordonnees):
+                if distance(self.coordonnees, entite.coordonnees) <= 6:
+                    ennemis_proches.append(entite)
+        
+        if len(ennemis_proches) <= 0:
+            return None
+        return ennemis_proches
 
 
 class Arme:
@@ -107,6 +129,26 @@ class Arme:
         self.texture= texture
 
 
+def presence_block(point_1:tuple, point_2:tuple):
+    """
+    Retourne True si il y a des blocks entre les deux points donnés et False sinon.
+    * point_1 (tuple) : coordonnees (x, y) du premier point
+    * point_2 (tuple) : coordonnees (x, y) du deuxième point
+    """
+    # trouver points de départ avec Pierre
+    # –> besoin de liste des blocks compris entre point_1 et point_2
+    zone    = []
+    
+
+def distance(point_1:tuple, point_2:tuple):
+    """
+    Retourne sous forme de tuple la distance (horizontale puis verticale) entre deux points.
+    * point_1 (tuple) : coordonnees (x, y) du premier point
+    * point_2 (tuple) : coordonnees (x, y) du deuxième point
+    """
+    return abs(point_1[0] - point_2[0]), abs(point_1[1] - point_2[1])
+
+
 ################################################################################
 
 joueur  = Joueur((0, 0), 100, 5, ['air' for _ in range(0, 6)])
@@ -115,4 +157,4 @@ epee    = Arme(20)
 
 ################################################################################
 
-# TODO: line 102 (class Arme / def init) –> gérer texture avec Tkinter
+# TODO: line 122 (class Arme / def init) –> gérer texture avec Tkinter
