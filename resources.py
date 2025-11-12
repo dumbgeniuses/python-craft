@@ -10,11 +10,11 @@ class Entite:
         * degat (int) : nombre de degats infligés par l'entité par défaut (sans arme en main)
         * ceinture (list) : liste de 6 'items' accessibles en main par l'entite
         """
-        self.coordonnees = coordonnees
-        self.vie = vie
-        self.degat = degat
-        self.ceinture = ceinture
-        self.main = 0
+        self.coordonnees= coordonnees
+        self.vie        = vie
+        self.degat      = degat
+        self.ceinture   = ceinture
+        self.main       = 0
 
     def get_coordonnees(self):
         """ Retourne la valeur de l'attribut coordonnees de l'entité. """
@@ -51,8 +51,9 @@ class Entite:
         """ Retourne la valeur de l'attribut main de l'entité. """
         return self.main
 
-    def set_main(self, glissement):
+    def set_main(self, glissement:int):
         """ Remplace l'index de la ceinture actuellement en main. """
+        # glissement = int(glissement) # si les scrolls de tkinter sont en floats
         if glissement < 0:
             negatif= True               # 
             glissement= -1*glissement   # passe le glissement en positif pour le calcul
@@ -87,7 +88,14 @@ class Joueur(Entite):
         """
         # pour bien transmettre les paramètres passés dans Joueur dans ceux hérités de Entite
         super().__init__(coordonnees, vie, degat, ceinture)
-        self.sac    = sac
+        self.sac= sac
+
+    def casser_bloc(self):
+        # à voir si utile ou pas ?
+        # peut être garder, selon la dureté des blocs pour faire une "pause" avant de le faire disparaitre
+        if isinstance(self.ceinture[self.get_main()], Pioche):
+            pass # faire 
+        pass
 
     def poser_bloc(self):
         pass
@@ -129,16 +137,23 @@ class Arme:
         self.texture= texture
 
 
-def presence_block(point_1:tuple, point_2:tuple):
+class Pioche:
+    pass
+
+
+# Fonctions en dehors des classes
+
+def presence_block(monde:dict, point_1:tuple, point_2:tuple):
     """
     Retourne True si il y a des blocks entre les deux points donnés et False sinon.
+    * monde (dict) : dictionnaire (coordonnees:tuple : block:Block) contenant tous les blocks du monde
     * point_1 (tuple) : coordonnees (x, y) du premier point
     * point_2 (tuple) : coordonnees (x, y) du deuxième point
     """
     # trouver points de départ avec Pierre
     # –> besoin de liste des blocks compris entre point_1 et point_2
-    zone    = []
     
+    zone = {}
 
 def distance(point_1:tuple, point_2:tuple):
     """
@@ -147,6 +162,17 @@ def distance(point_1:tuple, point_2:tuple):
     * point_2 (tuple) : coordonnees (x, y) du deuxième point
     """
     return abs(point_1[0] - point_2[0]), abs(point_1[1] - point_2[1])
+    # théorème de Pythagore pour calculer distance
+
+from math import sqrt
+def distance_directe(point_1:tuple, point_2:tuple):
+    """
+    Retourne un float correspondant à la distance directe entre deux points.
+    * point_1 (tuple) : coordonnees (x, y) du premier point
+    * point_2 (tuple) : coordonnees (x, y) du deuxième point
+    """
+    distance_indirecte= distance(point_1, point_2)
+    return sqrt( distance_indirecte[0]**2 + distance_indirecte[1]) + 1
 
 
 ################################################################################
