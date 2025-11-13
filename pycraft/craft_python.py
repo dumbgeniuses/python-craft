@@ -32,7 +32,7 @@ class Python_Craft(tk.Tk):
         self.title("Python Craft")
         self.attributes("-fullscreen", True)
         #liste du monde et des block
-        monde = []
+        self.monde = []
         self.blocks = {}
 
         # variable de la physique du monde
@@ -43,6 +43,7 @@ class Python_Craft(tk.Tk):
         self.vitesse_joueur = 5
         self.vitesse_verticale = 0
         self.ausol = False
+      
         
 
         #génération d'image
@@ -73,10 +74,10 @@ class Python_Craft(tk.Tk):
         self.sw = tk.Canvas(self,width=self.long_world,height = self.large_world,bg="skyblue",
                             scrollregion=(0,0,self.long_world,self.large_world))
         self.sw.pack()
-        self.joueur = self.sw.create_rectangle(400, 3000, 430, 3030, fill="blue")
+        self.joueur = self.sw.create_rectangle(400, 100, 430, 130, fill="blue")
 
-        self.create_world(monde)
-        self.charge_world(monde)        
+        self.create_world()
+        self.charge_world()        
         self.update()
 
         self.x_visible=self.winfo_width()
@@ -84,16 +85,20 @@ class Python_Craft(tk.Tk):
         self.touches_presser={}
         self.delai_touche =1.8
 
-        self.sw.tag_bind("block", "<Button-1>", self.on_click)
+        self.sw.tag_bind("block", "<Button-1>", self.casser_block)
+        self.sw.tag_bind("block","<Button-3>",self.poser_block)
         self.bind_all("<KeyPress>", self.touche_appuyer, add="+")
         self.bind_all("<KeyRelease>", self.touche_relacher, add="+")
         self.bind("<Escape>", lambda e: self.destroy())
-        self.bind("<Configure>", lambda e: self.taillle_visible(e))
+        self.bind("<Configure>", lambda e: self.taille_visible(e))
         self.bind("<FocusOut>", lambda e: self.touche_effacer())
 
         #focus sur le canevas
         self.sw.focus_set()
         self.sw.focus_force()
+
+        self.type_block_choisie = "rock"
+        self.textur_block_choisie= self.rock
 
         #fonctionnement du monde
         self.after(16, self.jeu_a_jour)
@@ -101,27 +106,29 @@ class Python_Craft(tk.Tk):
         self.after(500, self.touche_nettoyer)
 
     #génère tout les blocks du monde dans la liste monde
-    def create_world(self,monde):
-            long_world = 5000
-            large_world = 3000
-            for y in range(long_world//50):
-                for x in range(large_world//50):
-                    if y == 100 or y==99 :
-                        monde.append(Block("bedrock",x*50,y*50,self.bedrock))
-                    #elif y<99 and y>22:
-                        nb = randint(0,8)
-                        if nb ==0:
-                            monde.append(Block("rock",x*50,y*50,self.rockrotate))
-                        else :
-                            monde.append(Block("rock",x*50,y*50,self.rock))
-                    elif y<=22 and y>=20:
-                        monde.append(Block("dirt",x*50,y*50,self.dirt))
-                    elif y<19 and y>=18:
-                        monde.append(Block("grass_block",x*50,y*50,self.grass_block))
+    def create_world(self):
+    # on utilise self.long_world, self.large_world pour la grille
+        coordonnes= self.long_world // 50
+        couche = self.large_world // 50
+        for y in range(couche):
+            for x in range(coordonnes):
+                if y >= couche - 2:  
+                    self.monde.append(Block("bedrock", x*50, y*50, self.bedrock))
+                elif couche - 27 <= y < couche - 2:
+                    if randint(0,8) == 0:
+                        self.monde.append(Block("rock", x*50, y*50, self.rockrotate))
+                    else:
+                        self.monde.append(Block("rock", x*50, y*50, self.rock))
+                elif couche - 30 <= y < couche - 27:
+                    self.monde.append(Block("dirt", x*50, y*50, self.dirt))
+                elif couche - 31 <= y < couche - 30:
+                    self.monde.append(Block("grass_block", x*50, y*50, self.grass_block))
+                else:
+                    self.monde.append(Block("air", x*50, y*50, None))
 
     #charge les textures des block de la liste monde et un ad un id pour chaque texture de blocok
-    def charge_world(self,liste):
-        for bloc in liste:
+    def charge_world(self):
+        for bloc in self.monde:
             bloc.texture(self.sw)
             self.blocks[bloc.id] = bloc
 
@@ -176,7 +183,7 @@ class Python_Craft(tk.Tk):
                 pass
         self.after(1000, self.verifier_focus)
 
-    def taillle_visible(self, evenement):
+    def taille_visible(self, evenement):
         self.large_world = evenement.height
         self.long_world = evenement.width
 
@@ -245,7 +252,7 @@ class Python_Craft(tk.Tk):
 
 
 #prend l'id des block et les supprimes et delte leur texture en prennant le click souris
-    def on_click(self, event):
+    def casser_block(self, event):
         clicked = self.sw.find_withtag("current")
         if clicked:
             block_id = clicked[0]
@@ -254,6 +261,17 @@ class Python_Craft(tk.Tk):
                 self.sw.delete(block_id)
                 del self.blocks[block_id]
 
+    def poser_block(self, event):
+        clicked = self.sw.find_withtag("current")
+        if clicked:
+            block_id = clicked[0]
+            block = self.blocks.get(block_id)
+            block_type = block.type
+            if block_type == "air":
+                block.type = self.type_block_choisie
+                block.textur = self.textur_block_choisie
+                
+        
 if __name__ == "__main__":
     jeux = Python_Craft()
     jeux.mainloop()
