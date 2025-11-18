@@ -150,10 +150,30 @@ def presence_block(monde:dict, point_1:tuple, point_2:tuple):
     * point_1 (tuple) : coordonnees (x, y) du premier point
     * point_2 (tuple) : coordonnees (x, y) du deuxième point
     """
-    # trouver points de départ avec Pierre
-    # –> besoin de liste des blocks compris entre point_1 et point_2
-    
-    zone = {}
+    delta_x, delta_y= distance_directe(point_1, point2)
+    deplacement_x   = int(delta_x/delta_y)
+    if delta_x % delta_y != 0:
+        deplacement_x_2 = int(delta_x/delta_y)+1
+    else:
+        deplacement_x_2 = None
+    curseur = point_1
+
+    while curseur != point2:
+        curseur[0] += deplacement_x
+        if curseur == point_2:
+            break
+        if get_bloc(curseur).type != 'air':
+            return True
+
+        curseur[1] += 1
+        if curseur == point_2:
+            break
+        if get_bloc(curseur).type != 'air':
+            return True
+
+        if deplacement_x_2:
+            pass
+# A FINIR
 
 def distance(point_1:tuple, point_2:tuple):
     """
