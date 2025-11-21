@@ -26,6 +26,10 @@ class Block():
     def texture(self,canva):
         self.id = canva.create_image(self.x_debut,self.y_debut,image = self.textur,anchor="nw",tags=("block",))
 
+    def resistance(self):
+        self.soliditer = 1
+
+
 class Python_Craft(tk.Tk):
     def __init__(self):
         tk.Tk.__init__(self)
@@ -34,12 +38,13 @@ class Python_Craft(tk.Tk):
         #liste du monde et des block
         self.monde = []
         self.blocks = {}
+        self.chunk = {}
 
         # variable de la physique du monde
         self.long_world = 5000
         self.large_world=3000
-        self.gravite = 1
-        self.gravite_saut = -25
+        self.gravite = 1.3
+        self.gravite_saut = -20
         self.vitesse_joueur = 5
         self.vitesse_verticale = 0
         self.ausol = False
@@ -51,6 +56,9 @@ class Python_Craft(tk.Tk):
         dirt_image = dirt_image.resize((50, 50))
         self.dirtrotate = ImageTk.PhotoImage(dirt_image.rotate(90))
         self.dirt = ImageTk.PhotoImage(dirt_image)
+
+        air_img = Image.new("RGBA",(50,50),(0,0,0,0))
+        self.air = ImageTk.PhotoImage(air_img)
 
         andesite_image = Image.open("andesite.png").convert("RGBA")
         andesite_image = andesite_image.resize((50, 50))
@@ -85,7 +93,8 @@ class Python_Craft(tk.Tk):
         self.touches_presser={}
         self.delai_touche =1.8
 
-        self.sw.tag_bind("block", "<Button-1>", self.casser_block)
+        self.sw.tag_bind("block", "<ButtonPress-1>", self.click_maintenue)
+        self.sw.tag_bind("block", "<ButtonRelease-1>", self.click_lacher)
         self.sw.tag_bind("block","<Button-3>",self.poser_block)
         self.bind_all("<KeyPress>", self.touche_appuyer, add="+")
         self.bind_all("<KeyRelease>", self.touche_relacher, add="+")
@@ -112,25 +121,27 @@ class Python_Craft(tk.Tk):
         couche = self.large_world // 50
         for y in range(couche):
             for x in range(coordonnes):
-                if y >= couche - 2:  
+                if y <=2:
                     self.monde.append(Block("bedrock", x*50, y*50, self.bedrock))
-                elif couche - 27 <= y < couche - 2:
+                elif 2 <= y < 40:
                     if randint(0,8) == 0:
                         self.monde.append(Block("rock", x*50, y*50, self.rockrotate))
                     else:
                         self.monde.append(Block("rock", x*50, y*50, self.rock))
-                elif couche - 30 <= y < couche - 27:
+                elif 55 < y < 60:
                     self.monde.append(Block("dirt", x*50, y*50, self.dirt))
-                elif couche - 31 <= y < couche - 30:
+                elif 55 <= y < 56:
                     self.monde.append(Block("grass_block", x*50, y*50, self.grass_block))
                 else:
-                    self.monde.append(Block("air", x*50, y*50, None))
+                    self.monde.append(Block("air", x*50, y*50, self.air))
 
     #charge les textures des block de la liste monde et un ad un id pour chaque texture de blocok
     def charge_world(self):
         for bloc in self.monde:
             bloc.texture(self.sw)
             self.blocks[bloc.id] = bloc
+            chunk = bloc.x_debut//50, bloc.y_debut//50
+            self.chunk[chunk] = bloc
 
     def touche_appuyer(self, evenement):
         touche = evenement.keysym.lower()
@@ -207,7 +218,9 @@ class Python_Craft(tk.Tk):
         self.sw.move(self.joueur,deplacement_x,deplacement_y)
         x1,y1, x2 ,y2 =self.sw.coords(self.joueur)
         collisions = False
-        for bloc_id, bloc in self.blocks.items():
+
+        voisins = self.blocs_autour(x1, y1)
+        for bloc in voisins:
             if bloc.get_type() == "air":
                 continue
             bx1, by1 = bloc.x_debut, bloc.y_debut
@@ -249,20 +262,47 @@ class Python_Craft(tk.Tk):
         vue_y = (pos_y - self.y_visible / 2) / self.large_world
         self.sw.xview_moveto(max(0, min(1, vue_x)))
         self.sw.yview_moveto(max(0, min(1, vue_y)))
+        self.chunk_render()
 
 
 #prend l'id des block et les supprimes et delte leur texture en prennant le click souris
-    def casser_block(self, event):
+    def casser_block(self,event):
         clicked = self.sw.find_withtag("current")
         if clicked:
             block_id = clicked[0]
             block = self.blocks.get(block_id)
-            if block:
+            block_type = block.type
+            if block_type != "air":
                 self.sw.delete(block_id)
                 del self.blocks[block_id]
+                block.type = "air"
+                block.textur = self.air
+                block.texture(self.sw)
+                self.blocks[block.id] = block
+                self.click_gauche = False
+                self.timing = 0
+                
+
+    def click_maintenue(self,event):
+        self.click_gauche = True
+        self.timing= time.time()
+        self.maintien_continu(event)
+
+    def click_lacher(self,event):
+        self.click_gauche = False
+        self.timing = 0
+
+    def maintien_continu(self,event):
+        if not self.click_gauche:
+            return
+        if time.time() - self.timing >= 2:
+            self.casser_block(event)
+        self.after(50, lambda: self.maintien_continu(event))
+
 
     def poser_block(self, event):
         clicked = self.sw.find_withtag("current")
+        print(clicked)
         if clicked:
             block_id = clicked[0]
             block = self.blocks.get(block_id)
@@ -270,6 +310,46 @@ class Python_Craft(tk.Tk):
             if block_type == "air":
                 block.type = self.type_block_choisie
                 block.textur = self.textur_block_choisie
+                block.texture(self.sw)
+
+    def chunk_render(self):
+        for item in self.sw.find_withtag("render"):
+            self.sw.delete(item)
+
+            x1, y1, x2, y2 = self.sw.coords(self.joueur)
+            chunkx = int(x1 // 50)
+            chunky = int(y1 // 50)
+
+            view_x = self.x_visible // 50 + 2
+            view_y = self.y_visible // 50 + 2
+
+            visibility_x_base = (chunkx - view_x) // 2
+            visibility_x_end   = (chunkx + view_x) // 2
+            visibility_y_base = (chunky - view_y) // 2
+            visibility_y_end   = (chunky + view_y) // 2
+
+            for gy in range(visibility_y_base, visibility_y_end):
+                for gx in range(visibility_x_base, visibility_x_end):
+                    block = self.chunk.get((gx, gy))
+                    if block:
+                        block.id = self.sw.create_image(
+                            block.x_debut,
+                            block.y_debut,
+                            image=block.textur,
+                            anchor="nw",
+                            tags=("render", "block"))
+                    
+    def blocs_autour(self, px, py):
+        gx = int(px // 50)
+        gy = int(py // 50)
+
+        voisins = []
+        for dy in (-1, 0, 1):
+            for dx in (-1, 0, 1):
+                bloc = self.chunk.get((gx + dx, gy + dy))
+                if bloc and bloc.type != "air":
+                    voisins.append(bloc)
+        return voisins
                 
         
 if __name__ == "__main__":
