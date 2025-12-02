@@ -151,6 +151,53 @@ def presence_block(monde:dict, point_1:tuple, point_2:tuple):
     * point_2 (tuple) : coordonnees (x, y) du deuxième point
     """
     delta_x, delta_y= distance_directe(point_1, point2)
+    deplacement_xb = None # par défaut car optionel selon les coordonnées
+    deplacement_yb = None #
+
+    if delta_x >= delta_y:
+        if delta_y == 0:
+            deplacement_x = delta_x
+            deplacement_y = 0
+        else:
+            deplacement_x = delta_x // delta_y
+            deplacement_y = 1
+            if delta_x % delta_y != 0:
+                deplacement_xb = deplacement_x + 1
+    else:
+        if delta_x == 0:
+            deplacement_y = delta_y
+            deplacement_x = 0
+        else:
+            deplacement_y = delat-y // delta_x
+            deplacement_x = 1
+            if delta_y % delta_x != 0:
+                deplacement-yb = deplacement_y + 1
+#                                                                                                             passage dans l'autre sens pour laisser la place au passage d'une entité
+    if deplacement_curseur(point_1, point_2, deplacement_x, deplacement_y, deplacement_xb, deplacement_yb) or deplacement_curseur(point_2, point_1, 0-deplacement_x, 0-deplacement_y, 0-deplacement_xb, 0-deplacement_yb):
+        return True
+    return False
+
+def deplacement_curseur(point_1, point_2, deplacement_x, deplacement_y, deplacement_xb, deplacement_yb):
+    curseur = list(point_1)
+    while curseur != point_2:
+        curseur[0] += deplacement_x
+        if get_block(curseur[0], curseur[1]).type != 'air':
+            return True
+        curseur[1] += deplacement_y
+        if get_block(curseur[0], curseur[1]).type != 'air':
+            return True
+        if deplacement_xb:
+            curseur[0] += deplacement_xb
+            if get_block(curseur[0], curseur[1]).type != 'air':
+                return True
+        if deplacement_yb:
+            curseur[1] += deplacement_yb
+            if get_block(curseur[0], curseur[1]).type != 'air':
+                return True
+    return False
+
+
+    
     deplacement_x   = int(delta_x/delta_y)
     if delta_x % delta_y != 0:
         deplacement_x_2 = int(delta_x/delta_y)+1
