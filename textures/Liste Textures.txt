@@ -1,0 +1,63 @@
+### [✅] = Finie, [❌] = Pas encore finie/choisie de version, [⚠️] = Modifications à apporter/Manque de variantes, [ ] = Pas encore commencée
+
+---BLOCKS---
+### Dimensions = 25x25
+
+	Blocks :
+
+❌/⚠️ - dirt
+[+ variantes]
+
+⚠️ - stone 
+[+ variantes]
+
+✅ - grass 
+[+ variantes]
+
+⚠️ - grass_block 
+[+ variantes]
+
+❌ - bedrock
+- sand
+- wood
+- leaves
+- flower (Iris = purple)
+- flower (Rose = red)
+- flower (Daisy = white)
+
+
+	Minerals :
+
+✅ - dedioxyde 
+✅/⚠️? - dedioxyde_ore (on the side)
+- ruby
+- ruby_ore (in the stone)
+- gold
+- gold_ore
+
+
+---GUI---
+### Dimensions = ?
+
+	Interface Démarrage Jeu :
+
+- Backround
+- Title
+- Clickable Buttons
+{"Start", "Options", "Exit"}
+
+
+
+---MOBS---
+### Dimensions = 50x50
+
+	Player related :
+
+-Player
+{❌face, side}
+
+-Mining animation
+{hand, tool utilisation}
+
+-Utilisation de blocs
+{take, place}
