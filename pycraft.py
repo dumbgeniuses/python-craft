@@ -1,0 +1,974 @@
+import tkinter   as   tk
+from   PIL     import Image, ImageTk, ImageOps
+from   pathlib import Path
+from   random  import *
+import time
+import os
+import winsound
+
+class Entite:
+    """
+    une entité (joueur, animal, créature...)
+    """
+    def __init__(self,texture,x_debut, y_debut, vie:int=None, degat:int=None, ceinture:list=[], main:int=0,):
+        """
+        Constructeur de la classe Entité.
+        * coordonnees (tuple) : coordonnees x / y de l'entité dans le monde
+        * vie (int) : nombre de points de vie actuels (pas le maximum)
+        * degat (int) : nombre de degats infligés par l'entité par défaut (sans arme en main)
+        * ceinture (list) : liste de 6 'items' accessibles en main par l'entite
+        """
+        self.ausol      = False
+        self.x_debut    = x_debut
+        self.y_debut    = y_debut
+        self.texture    = texture
+        self.vie        = vie
+        self.degat      = degat
+        self.ceinture   = ceinture
+        self.main       = 0
+
+
+    def get_coordonnees(self):
+        """ Retourne la valeur de l'attribut coordonnees de l'entité. """
+        return self.coordonnees
+
+    def set_coordonnees(self, newCoordonnees:tuple):
+        """ Remplace la valeur de l'attribut coordonnees de l'entité. """
+        self.coordonnees = newCoordonnees
+
+    def get_vie(self):
+        """ Retourne la valeur de l'attribut vie de l'entité. """
+        return self.vie
+
+    def set_vie(self, newVie:int):
+        """ Remplace la valeur de l'attribut vie de l'entité. """
+        self.vie = newVie
+
+    def get_degat(self):
+        """ Retourne la valeur de l'attribut degat de l'entité. """
+        return self.degat
+
+    # pas set_degat(self): car on ne change jamais les dégâts faits par l'entité
+    # attaque() prend déjà en charge le port d'arme
+
+    def get_ceinture(self):
+        """ Retourne la valeur de l'attribut ceinture de l'entité. """
+        return self.ceinture
+
+    def set_ceinture(self, slot:int, item):
+        """ Remplace l'item à l'emplacement d'index {slot} (de la ceinture) par {item}. """
+        self.ceinture[slot] = item
+
+    def get_main(self):
+        """ Retourne la valeur de l'attribut main de l'entité. """
+        return self.main
+
+    def set_main(self, glissement:int):
+        """ Remplace l'index de la ceinture actuellement en main. """
+        # glissement = int(glissement) # si les scrolls de tkinter sont en floats
+        if glissement < 0:
+            negatif= True               #
+            glissement= -1*glissement   # passe le glissement en positif pour le calcul
+
+        while (self.get_main() + glissement) > 6:
+            glissement -= 6
+
+        if negatif:
+            self.main = 6 - glissement
+        else:
+            self.main = glissement
+
+    def attaque(self, victime):
+        if isinstance(self.ceinture[self.get_main()], Arme):
+            victime.set_vie(victime.get_vie() - self.ceinture[self.get_main()].degat)
+        else:
+            victime.set_vie(victime.get_vie() - self.degat)
+
+    def set_texture(self,canva):
+        self.id = canva.create_image(self.x_debut,self.y_debut,image = self.texture,anchor="nw",tags=("bom",))
+
+    def deplacement(self,canva,deplacement_x, deplacement_y,dictionnaire):
+        canva.move(self.id,deplacement_x,deplacement_y)
+        x1,y1 =canva.coords(self.id)
+        x2 = x1 + 50
+        y2 = y1 + 50
+        collisions = False
+
+        voisins = self.blocs_autour(x1, y1,dictionnaire)
+        for bloc in voisins:
+            if bloc.get_type() == "air" or bloc.get_type() == "grass":
+                continue
+            bx1, by1 = bloc.x_debut, bloc.y_debut
+            bx2, by2 = bx1 + 50, by1 +50
+            if not (x2 <= bx1 or x1 >= bx2 or y2 <= by1 or y1 >= by2):
+                if deplacement_y > 0 and y1 < by1:
+                    self.sw.move(self.joueur, 0, by1 - y2)
+                    self.vitesse_verticale = 0
+                    self.ausol = True
+                elif deplacement_y < 0 and y2 > by2:
+                    self.sw.move(self.joueur, 0, by2 - y1)
+                    self.vitesse_verticale = 0
+                elif deplacement_x > 0 and x1 < bx1:
+                    self.sw.move(self.joueur, bx1 - x2, 0)
+                elif deplacement_x < 0 and x2 > bx2:
+                    self.sw.move(self.joueur, bx2 - x1, 0)
+                collisions = True
+                break
+
+        if not collisions and deplacement_y >= 0:
+            self.ausol = False
+
+        if x1  <0:
+            self.sw.move(self.joueur, -x1,0)
+        elif x2 > self.long_world:
+            self.sw.move(self.joueur,self.long_world - x2,0)
+        if y2 > self.large_world:
+            self.sw.move(self.joueur,0, self.large_world- y2)
+            self.vitesse_verticale = 0
+            self.ausol = True
+
+    def blocs_autour(self, px, py, dictionnaire):
+        gx = int(px // 50)
+        gy = int(py // 50)
+
+        voisins = []
+        for dy in (-1, 0, 1):
+            for dx in (-1, 0, 1):
+                bloc = dictionnaire.get((gx + dx, gy + dy))
+                if bloc and bloc.type != "air":
+                    voisins.append(bloc)
+        return voisins
+
+#class Nom(AutreClasse) fait hériter Nom de toutes les propriétés de AutreClasse
+class Joueur(Entite):
+    """
+    le joueur
+    """
+    def __init__(self, x_debut, y_debut, image,vie:int=100, degat:int=10, ceinture:list=[], sac:list=[]):
+        """
+        Constructeur de la classe Joueur.
+        * coordonnees (tuple) : coordonnées x / y du joueur dans le monde
+        * vie (int) : nombre de points de vie actuels (pas le maximum)
+        * degat (int) : nombre de dégâts infligés par le joueur par défaut (sans arme en main)
+        * ceinture (list) : liste de 6 'items' accessibles en main par le joueur
+        * sac (list) : liste de tous les 'items' dans l'inventaire du joueur
+        """
+        # pour bien transmettre les paramètres passés dans Joueur dans ceux hérités de Entite
+        super().__init__(x_debut, y_debut, vie, degat, ceinture)
+        self.sac= sac
+
+    def casser_bloc(self):
+        # à voir si utile ou pas ?
+        # peut être garder, selon la dureté des blocs pour faire une "pause" avant de le faire disparaitre
+        if isinstance(self.ceinture[self.get_main()], Pioche):
+            pass # faire
+        pass
+
+    def poser_bloc(self):
+        pass
+
+    """def verification_ennemis(self, ennemis:list=[]):
+
+        Retourne la liste de tous les ennemis qui voient le joueur, ou None si aucune.
+        Fonction utilisée automatiquement à chaque déplacement du joueur.
+        * ennemis (list) : liste de toutes les entités hostiles dans le monde
+
+        # vérifier si blocks entre joueur et entité :
+        #   si oui, passer à la suivante, sinon passer à la vérif suivante
+        # vérifier si distance joueur-entité est 7 ou plus :
+        #   si oui, passer à la suivante, sinon passer à la vérif suivante
+        ennemis_proches = []
+
+        for entite in ennemis:
+            # si il n'y a pas de blocks entre le joueur et l'ennemi
+            if not presence_block(self.coordonnees, entite.coordonnees):
+                if distance(self.coordonnees, entite.coordonnees) <= 6:
+                    ennemis_proches.append(entite)
+
+        if len(ennemis_proches) <= 0:
+            return None
+        return ennemis_proches
+"""
+
+class Arme:
+    """
+    une arme
+    """
+    def __init__(self, degat:int, texture:str='./textures/missing.png'):
+        """
+        Constructeur de la classe Arme.
+        * degat (int) : nombre de dégâts infligés par l'arme
+        * texture (str) : chemin d'accès à la texture de l'arme
+        """
+        self.degat  = degat
+        self.texture= texture
+
+
+class Pioche:
+    pass
+
+"""
+# Fonctions en dehors des classes
+
+def presence_block(monde:dict, point_1:tuple, point_2:tuple):
+
+    Retourne True si il y a des blocks entre les deux points donnés et False sinon.
+    * monde (dict) : dictionnaire (coordonnees:tuple : block:Block) contenant tous les blocks du monde
+    * point_1 (tuple) : coordonnees (x, y) du premier point
+    * point_2 (tuple) : coordonnees (x, y) du deuxième point
+
+    delta_x, delta_y= distance_directe(point_1, point2)
+    deplacement_xb = None # par défaut car optionel selon les coordonnées
+    deplacement_yb = None #
+
+    if delta_x >= delta_y:
+        if delta_y == 0:
+            deplacement_x = delta_x
+            deplacement_y = 0
+        else:
+            deplacement_x = delta_x // delta_y
+            deplacement_y = 1
+            if delta_x % delta_y != 0:
+                deplacement_xb = deplacement_x + 1
+    else:
+        if delta_x == 0:
+            deplacement_y = delta_y
+            deplacement_x = 0
+        else:
+            deplacement_y = delat-y // delta_x
+            deplacement_x = 1
+            if delta_y % delta_x != 0:
+                deplacement-yb = deplacement_y + 1
+#                                                                                                             passage dans l'autre sens pour laisser la place au passage d'une entité
+    if deplacement_curseur(point_1, point_2, deplacement_x, deplacement_y, deplacement_xb, deplacement_yb) or deplacement_curseur(point_2, point_1, 0-deplacement_x, 0-deplacement_y, 0-deplacement_xb, 0-deplacement_yb):
+        return True
+    return False
+
+def deplacement_curseur(point_1, point_2, deplacement_x, deplacement_y, deplacement_xb, deplacement_yb):
+    curseur = list(point_1)
+    while curseur != point_2:
+        curseur[0] += deplacement_x
+        if get_block(curseur[0], curseur[1]).type != 'air':
+            return True
+        curseur[1] += deplacement_y
+        if get_block(curseur[0], curseur[1]).type != 'air':
+            return True
+        if deplacement_xb:
+            curseur[0] += deplacement_xb
+            if get_block(curseur[0], curseur[1]).type != 'air':
+                return True
+        if deplacement_yb:
+            curseur[1] += deplacement_yb
+            if get_block(curseur[0], curseur[1]).type != 'air':
+                return True
+    return False
+"""
+"""
+
+    deplacement_x   = int(delta_x/delta_y)
+    if delta_x % delta_y != 0:
+        deplacement_x_2 = int(delta_x/delta_y)+1
+    else:
+        deplacement_x_2 = None
+    curseur = point_1
+
+    while curseur != point2:
+        curseur[0] += deplacement_x
+        if curseur == point_2:
+            break
+        if get_bloc(curseur).type != 'air':
+            return True
+
+        curseur[1] += 1
+        if curseur == point_2:
+            break
+        if get_bloc(curseur).type != 'air':
+            return True
+
+        if deplacement_x_2:
+            pass
+# A FINIR
+"""
+def distance(point_1:tuple, point_2:tuple):
+    """
+    Retourne sous forme de tuple la distance (horizontale puis verticale) entre deux points.
+    * point_1 (tuple) : coordonnees (x, y) du premier point
+    * point_2 (tuple) : coordonnees (x, y) du deuxième point
+    """
+    return abs(point_1[0] - point_2[0]), abs(point_1[1] - point_2[1])
+    # théorème de Pythagore pour calculer distance
+
+from math import sqrt
+def distance_directe(point_1:tuple, point_2:tuple):
+    """
+    Retourne un float correspondant à la distance directe entre deux points.
+    * point_1 (tuple) : coordonnees (x, y) du premier point
+    * point_2 (tuple) : coordonnees (x, y) du deuxième point
+    """
+    distance_indirecte= distance(point_1, point_2)
+    return sqrt( distance_indirecte[0]**2 + distance_indirecte[1]) + 1
+
+
+################################################################################
+
+"""joueur  = Joueur((0, 0), 100, 5, ['air' for _ in range(0, 6)])
+monstre = Entite((0,0), 50, 10, [Arme(20)])
+epee    = Arme(20)"""
+
+
+
+class Block():
+    """
+    Un block standard
+    """
+    def __init__(self, type, x_debut, y_debut, resistance, texture, animation = None, id_image = None):
+
+        """
+        Consrtucteur de la classe Block.
+        * type          (str)                 : le type de block
+        * x_debut       (int)                 : la coordonnes x de début du block
+        * y_debut       (int)                 : la coordonnes y de début du block
+        * resistance    (int)                 : la resistance du block
+        * texture       (ImageTk.PhotoImage)  : la texture du block
+        * animation     (list)                : une liste composer d'image en guise d'element
+        * id_image      (int)                 : identifiant de l'objet dans le canva
+        """
+
+        self.type       = type
+        self.x_debut    = x_debut
+        self.y_debut    = y_debut
+        self.resistance = resistance
+        self.texture    = texture
+        self.animation  = animation
+        self.id_image   = id_image
+
+    def get_type(self):
+        """Renvoie self.type(str)"""
+        if isinstance(self.type, str):
+            return "self.type doit être une chaine de caractere"
+
+        return self.type
+
+    def get_x(self):
+        """Renvoie self.x_debut(int)"""
+        if isinstance(self.x_debut, int):
+            return "self.x_debut doit être un nombre entier"
+
+        return self.x_debut
+
+    def get_y(self):
+        """Renvoie self.y_debut(int)"""
+        if isinstance(self.y_debut, int):
+            return "self.y_debut doit être un nombre entier"
+
+        return self.y_debut
+
+    def get_resistane(self):
+        """Renvoie self.resistence(int)"""
+        if isinstance(self.resistance, int):
+            return "self.resistance doit être un nombre entier"
+
+        return self.resistance
+
+    def get_texture(self):
+        """Renvoie self.texture(ImageTk.PhotoImage)"""
+        if isinstance(self.texture, ImageTk.PhotoImage):
+            return "self.texture doit être une image tkinter"
+
+        return self.texture
+
+    def get_animation(self):
+        """Renvoie self.animation(list) et vérifie si les element de la liste sont des images."""
+        if not isinstance(self.animation, list):
+            return "self.animation doit être une liste d'image tkinter"
+
+        for image in self.animation:
+            if not isinstance(image, ImageTk.PhotoImage):
+                return "les element de la liste self.animation doit être des images tkinter"
+        return self.animation
+
+    def get_id_image(self):
+        """renvoie self.id_image(int)"""
+        if isinstance(self.id_image, int):
+            return self.id_image
+        return "The block doesn't have id in canva"
+
+    def set_type(self, new_type):
+        """change self.type(str) avec la chaine de caractere de new_type(str)"""
+        if not isinstance(new_type, str):
+            return "new_type doit être une chaine de caractere"
+        self.type = new_type
+        return self.get_type()
+
+    def set_x(self, x):
+        """change self.x_debut(int) avec la valeur de x(int)"""
+        if not isinstance(x, int):
+            return "x doit être un nombre entier"
+        self.x_debut = x
+        return self.get_x()
+
+    def set_y(self, y):
+        """change self.y_debut(int) avec la valeur de y(int)"""
+        if not isinstance(y, int):
+            return "y doit être un nombre entier"
+
+        self.y_debut = y
+        return self.get_y()
+
+    def set_resistance(self, new_resistance):
+        """change self.resistance(int) avec la valeur de new_resistance(int)"""
+        if not isinstance(new_resistance, int):
+            return "new_resistance doit être un nombre entier"
+
+        self.resistance = new_resistance
+        return self.get_resistane()
+
+    def set_texture(self, new_texture):
+        """change self.texture(ImageTk.PhotoImage) avec l'image de new_texture(ImageTk.PhotoImage)"""
+        if not isinstance(new_texture, ImageTk.PhotoImage):
+            return "new_texture doit être une image tkinter"
+
+        self.texture = new_texture
+        return self.get_texture()
+
+    def set_animation(self, new_animation):
+        """change self.animation(list) avec la valeur de new_animation(list)"""
+        if not isinstance(new_animation, list):
+            return "new_animation doit être une liste d'image tkinter"
+
+        for image in new_animation:
+            if not isinstance(image, ImageTk.PhotoImage):
+                return "les element de la liste new_animation doit être des images tkinter"
+
+        self.animation = new_animation
+        return self.get_animation
+
+    def set_id_image(self, new_id):
+        if not isinstance(new_id, int):
+            return "new_id doit être un nombre entier"
+
+        self.id_image = new_id
+        return self.get_id_image()
+
+    def appliquer_texture(self,canva):
+        """change self.id_image(int) avec la valeur de new_type"""
+        try:
+            if isinstance(self.texture,ImageTk.PhotoImage):
+                self.id_image = canva.create_image(self.x_debut, self.y_debut, image = self.texture, anchor="nw", tags=("block"))
+                return
+
+            if isinstance(self.texture,list):
+                for image in self.texture:
+                    if not isinstance(image, ImageTk.PhotoImage):
+                        return "les element de la liste new_animation doit être des images tkinter"
+
+                chance = randint(0,len(self.texture)-1)
+                print(chance)
+                self.id_image = canva.create_image(self.x_debut, self.y_debut, image = self.texture[chance], anchor="nw", tags=("block"))
+                return
+
+        except AttributeError:
+            return "La variable canva doit être un canva tkinter."
+
+        except TypeError as canva:
+            return "Paramètre manquant :", canva
+
+
+
+
+class Python_Craft(tk.Tk):
+    def __init__(self):
+        tk.Tk.__init__(self)
+
+        #attribut de la fenetre
+        self.title("Python Craft")
+        self.attributes("-fullscreen", True)
+
+        #liste des block du mondes et leurs id
+        self.monde  = []
+        self.blocks = {}
+        self.chunk  = {}
+
+        #dictionnaires d'images
+        self.image_liste     = {}
+        self.image_liste_PIl = {}
+
+        # variables de la taille du monde
+        self.long_world  = 5000
+        self.large_world = 3000
+
+        #variables physiques
+        self.gravite           = 1.3
+        self.gravite_saut      = -20
+        self.vitesse_joueur    = 5
+        self.vitesse_verticale = 0
+        self.ausol             = False
+
+        #variables animation
+        self.etat            = {"droite" : True, "marche":  False, "mine" : False}
+        self.timing          = time.time()
+        self.delai_animation = 0.12
+        self.anim_index      = 0
+        self.anim_index_m    = 0
+
+        #variable pour régler des problème de touche
+        self.touches_presser = {}
+        self.delai_touche    = 1.8
+
+        """import toutes les images du dossier /texture"""
+        #A remplacer par les fonctions du fichier extend
+        for fichier in os.listdir("texturing"):
+            chemin_complet = os.path.join("texturing", fichier)
+            image = Image.open(chemin_complet).convert("RGBA")
+            image = image.resize((50, 50))
+            self.image_liste[os.path.splitext(fichier)[0]] = ImageTk.PhotoImage(image)
+            self.image_liste_PIl[os.path.splitext(fichier)[0]] = image
+
+        #définti quelle block pose la fonction poser_block
+        self.type_block_choisie   = "dirt"
+        self.textur_block_choisie = self.image_liste["dirt"]
+
+        #creer la texture de l'air
+        air_img  = Image.new("RGBA",(50,50),(0,0,0,0))
+        self.air = ImageTk.PhotoImage(air_img)
+
+        #creer et affiche le canva
+        self.sw = tk.Canvas(self,width=self.long_world,height = self.large_world,bg="skyblue",scrollregion=(0,0,self.long_world,self.large_world))
+        self.sw.pack()
+
+        #entite
+        self.joueur = Joueur(self.image_liste["steeve"],500,1300,20)
+        self.joueur.set_texture(self.sw)
+
+        self.mouton = Entite(self.image_liste["sheep"],500,1300,20,1)
+        self.mouton.set_texture(self.sw)
+
+        #Arbre
+        self.arbre = []
+
+        #ajouter le chargement de mode dynamique.
+        self.create_world()
+        self.charge_world()
+        self.update()
+
+        #prend les info de la taille de l'écran.
+        self.x_visible = self.winfo_width()
+        self.y_visible = self.winfo_height()
+
+        #lance les animation en boucle
+        self.casser_animation()
+        self.deplacement_animation()
+
+        """permet de lancer la fonction qui pose et casse des blocks"""
+        self.sw.tag_bind("block", "<ButtonPress-1>"  , self.click_maintenue)
+        self.sw.tag_bind("block", "<ButtonRelease-1>", self.click_lacher   )
+        self.sw.tag_bind("block", "<Button-3>"       , self.poser_block    )
+
+        """fonctions pour les problème de touches"""
+        self.bind_all("<KeyPress>"  , self.touche_appuyer   , add="+")
+        self.bind_all("<KeyRelease>", self.touche_relacher  , add="+")
+        self.bind("<Escape>"    , lambda e: self.destroy()       )
+        self.bind("<FocusOut>"  , lambda e: self.touche_effacer())
+        self.verifier_focus()
+
+        """lance une fonction qui s'occupe le réagenssement des fenetres"""
+        self.bind_all("<Configure>", lambda e: self.taille_visible(e))
+
+        """gère et remet le focus sur le canevas"""
+        self.sw.focus_set()
+
+
+        """fonctionnement du monde"""
+        self.after(16, self.jeu_a_jour     )
+        self.after(16, self.physique_a_jour)
+        #self.after(500, self.touche_nettoyer)
+
+    """génère tout les blocks du monde dans la liste monde"""
+    def create_world(self):
+        """on utilise self.long_world, self.large_world pour la grille"""
+
+        coordonnes = self.long_world  // 50
+        couche     = self.large_world // 50
+
+        self.nb           = 0
+        self.taille_biome = [15, 17, 20]
+        self.choix        = 0
+
+        for y in range(couche):
+
+            for x in range(coordonnes):
+
+                if y == 60:
+                    self.monde.append(Block("bedrock", x*50, y*50, 1, self.image_liste["bedrock"]))
+
+                elif 45 <= y < 60 :
+                    d = randint(1,200)
+
+                    if d == 1 :
+                        self.monde.append(Block("iron", x*50, y*50, 1, self.image_liste["iron"]))
+
+                    elif d == 2 or d ==3 :
+                        self.monde.append(Block("coal", x*50, y*50, 1, self.image_liste["coal"]))
+
+                    else:
+                        self.monde.append(Block("rock", x*50, y*50, 1, self.image_liste["stone"]))
+
+                elif 30 <= y < 45:
+                    self.monde.append(Block("dirt", x*50, y*50, 1, self.image_liste["dirt"]))
+
+                elif 29 <= y < 30:
+                    self.monde.append(Block("grass_block", x*50, y*50, 1, self.image_liste["grass_block"]))
+
+                elif 28 <= y < 29:
+
+                    if self.nb == 0:
+                        self.biomes = randint(1,2)
+                        self.nb = self.taille_biome[randint(0,2)]
+                        print(self.biomes, self.nb)
+
+                    else:
+                        self.nb -= 1
+
+                        if self.biomes == 1:
+                            if x not in self.arbre and randint(1, 3) == 1:
+                                if all(abs(x - ax) > 3 for ax in self.arbre):
+                                    self.planter_arbre(x, y)
+                                    self.arbre.append(x)
+
+                        if self.biomes == 2:
+                            if randint(1,10) in (1,2,3,4):
+
+                                if randint(1,10) in (1,2,3,4,5,6,7,8,9):
+
+                                    if randint(1,2) == 1:
+                                        self.monde.append(Block("grass", x*50, y*50, 1, self.image_liste["g1"]))
+
+                                    else:
+                                        self.monde.append(Block("grass", x*50, y*50, 1, self.image_liste["g1s"]))
+                                else:
+                                    self.monde.append(Block("flower", x*50, y*50, 1, self.image_liste["flower"]))
+                            else:
+                                self.monde.append(Block("air", x*50, y*50, 1, self.air))
+                else:
+                    self.monde.append(Block("air", x*50, y*50, 1, self.air))
+
+
+    def planter_arbre(self, x, sol):
+        if randint(0,5) > 1:
+            hauteur = randint(3, 5)
+        else:
+            hauteur = randint(6,8)
+
+        # Tronc
+        for i in range(hauteur):
+            self.monde.append(
+                Block("wood", x*50, (sol - i) *50, 1, self.image_liste["wood"])
+            )
+
+        # Feuilles
+        sommet = sol - hauteur
+
+        for dx in range(-2, 3):
+            for dy in range(-2, 2):
+                if abs(dx) + abs(dy) <= 3:
+                    self.monde.append(
+                        Block("leaves", (x + dx)*50, (sommet + dy)*50, 1, self.image_liste["leaves"])
+                    )
+
+    #charge les textures des block de la liste monde et un ad un id pour chaque texture de blocok
+    def charge_world(self):
+        for block in self.monde:
+            block.appliquer_texture(self.sw)
+            self.blocks[block.get_id_image()] = block
+            chunk = block.x_debut // 50, block.y_debut // 50
+            self.chunk[chunk] = block
+
+
+    def touche_appuyer(self, evenement):
+        touche = evenement.keysym.lower()
+        code = getattr(evenement,"keycode", None)
+        press_touch = self.touches_presser.get(touche)
+        if press_touch is None:
+            self.touches_presser[touche] = {"temps": self.timing, "codes": set()}
+        else:
+            press_touch["temps"] = self.timing
+        if code is not None:
+            self.touches_presser[touche]["codes"].add(code)
+        if touche in("space","z","w") and self.ausol:
+            self.vitesse_verticale = self.gravite_saut
+            self.ausol= False
+
+    def touche_relacher(self, evenement):
+        touche = evenement.keysym.lower()
+        code = getattr(evenement, "keycode", None)
+
+
+        if touche in self.touches_presser:
+            entre = self.touches_presser[touche]
+
+            if code in entre["codes"]:
+                entre["codes"].remove(code)
+
+
+            if not entre["codes"]:
+                self.touches_presser.pop(touche, None)
+
+
+        else:
+            for nom, entre in list(self.touches_presser.items()):
+                if code in entre["codes"]:
+                    entre["codes"].remove(code)
+                    if not entre["codes"]:
+                        self.touches_presser.pop(nom, None)
+                    break
+
+
+    def touche_effacer(self):
+        self.touches_presser.clear()
+    """
+    def touche_nettoyer(self):
+        actuellement= time.time()
+        touche_a_supprimer =[touche for touche, entre in self.touches_presser.items() if actuellement - entre["temps"]>self.delai_touche]
+        for touche in touche_a_supprimer:
+            self.touches_presser.pop(touche, None)
+        self.after(500,self.touche_nettoyer)
+    """
+    def verifier_focus(self):
+        if not self.focus_displayof():
+            try:
+                self.sw.focus_force()
+            except Exception:
+                pass
+        self.after(1000, self.verifier_focus)
+
+    def taille_visible(self, evenement):
+        self.large_world = evenement.height
+        self.long_world = evenement.width
+
+    def jeu_a_jour(self):
+        touche =set(self.touches_presser.keys())
+        deplacement_x = 0
+        if "left" in touche or "q" in touche:
+            self.etat["droite"] = False
+            deplacement_x -= self.vitesse_joueur
+        if "right" in touche or "d" in touche:
+            self.etat["droite"] = True
+            deplacement_x += self.vitesse_joueur
+        if deplacement_x != 0:
+            self.deplacement_joueur(deplacement_x,0)
+        self.etat["marche"] = deplacement_x != 0
+        self.after(16, self.jeu_a_jour)
+
+    def physique_a_jour(self):
+        self.vitesse_verticale += self.gravite
+        self.deplacement_joueur(0,self.vitesse_verticale)
+        self.after(16,self.physique_a_jour)
+
+    def deplacement_joueur(self,deplacement_x, deplacement_y):
+        self.sw.move(self.joueur.id,deplacement_x,deplacement_y)
+        x1,y1 =self.sw.coords(self.joueur.id)
+        x2 = x1 + 50
+        y2 = y1 + 50
+        collisions = False
+
+        voisins = self.blocs_autour(x1, y1)
+        for bloc in voisins:
+            if bloc.get_type() == "air" or bloc.get_type() == "grass":
+                continue
+            bx1, by1 = bloc.x_debut, bloc.y_debut
+            bx2, by2 = bx1 + 50, by1 +50
+            if not (x2 <= bx1 or x1 >= bx2 or y2 <= by1 or y1 >= by2):
+                if deplacement_y > 0 and y1 < by1:
+                    self.sw.move(self.joueur.id, 0, by1 - y2)
+                    self.vitesse_verticale = 0
+                    self.ausol = True
+                elif deplacement_y < 0 and y2 > by2:
+                    self.sw.move(self.joueur.id, 0, by2 - y1)
+                    self.vitesse_verticale = 0
+                elif deplacement_x > 0 and x1 < bx1:
+                    self.sw.move(self.joueur.id, bx1 - x2, 0)
+                elif deplacement_x < 0 and x2 > bx2:
+                    self.sw.move(self.joueur.id, bx2 - x1, 0)
+                collisions = True
+                break
+
+        if not collisions and deplacement_y >= 0:
+            self.ausol = False
+
+        if x1  <0:
+            self.sw.move(self.joueur.id, -x1,0)
+        elif x2 > self.long_world:
+            self.sw.move(self.joueur.id,self.long_world - x2,0)
+        if y2 > self.large_world:
+            self.sw.move(self.joueur.id,0, self.large_world- y2)
+            self.vitesse_verticale = 0
+            self.ausol = True
+        self.camera_centrer(x1,x2,y1,y2)
+
+    def camera_centrer(self,x1,x2,y1,y2):
+        pos_x = (x1 + x2) / 2
+        pos_y = (y1 + y2) / 2
+        vue_x = (pos_x - self.x_visible / 2) / self.long_world
+        vue_y = (pos_y - self.y_visible / 2) / self.large_world
+        self.sw.xview_moveto(max(0, min(1, vue_x)))
+        self.sw.yview_moveto(max(0, min(1, vue_y)))
+        self.chunk_render()
+
+
+#prend l'id des block et les supprimes et delete leur texture en prennant le click souris
+    def casser_block(self,event):
+        clicked = self.sw.find_withtag("current")
+        if clicked:
+            block_id = clicked[0]
+            block = self.blocks.get(block_id)
+            block_type = block.type
+            if block_type != "air":
+                self.sw.delete(block_id)
+                del self.blocks[block_id]
+                block.type = "air"
+                block.textur = self.air
+                block.texture(self.sw)
+                self.blocks[block.id] = block
+                self.click_gauche = False
+                self.timing = 0
+
+    def click_maintenue(self,event):
+        self.click_gauche = True
+        self.timing= time.time()
+        clicked = self.sw.find_withtag("current")
+        block_id = clicked[0]
+        block = self.blocks.get(block_id)
+        if block.type == "air" or block.type =="grass":
+            return
+        else:
+            self.etat["mine"] = True
+            winsound.PlaySound("casserv1.wav", winsound.SND_FILENAME | winsound.SND_ASYNC)
+            self.maintien_continu(event)
+
+    def click_lacher(self,event):
+        self.click_gauche = False
+        self.timing = 0
+        self.etat["mine"] = False
+        winsound.PlaySound(None, winsound.SND_PURGE)
+        self.anim_index_m = 0
+
+    def maintien_continu(self,event):
+        if not self.click_gauche:
+            self.etat["mine"] = False
+            return
+        if time.time() - self.timing >= 1:
+            clicked = self.sw.find_withtag("current")
+            block_id = clicked[0]
+            block = self.blocks.get(block_id)
+            assemblage = Image.alpha_composite(self.image_liste_PIl["dirt"],self.image_liste_PIl["casser"])
+            block.textur = ImageTk.PhotoImage(assemblage)
+            block.texture(self.sw)
+            self.blocks[block.id] = block
+        if time.time() - self.timing >= 2:
+            self.etat["mine"] = True
+            self.casser_block(event)
+        self.after(50, lambda: self.maintien_continu(event))
+
+
+    def poser_block(self, event):
+        clicked = self.sw.find_withtag("current")
+        block_id = clicked[0]
+        if clicked:
+            block = self.blocks.get(block_id)
+            block_type = block.type
+            if block_type == "air" or block_type == "grass":
+                block.type = self.type_block_choisie
+                block.textur = self.textur_block_choisie
+                block.texture(self.sw)
+                self.blocks[block.id] = block
+
+    def chunk_render(self):
+        for item in self.sw.find_withtag("render"):
+            self.sw.delete(item)
+
+            x1, y1, x2, y2 = self.sw.coords(self.joueur)
+            chunkx = int(x1 // 50)
+            chunky = int(y1 // 50)
+
+            view_x = self.x_visible // 50 + 2
+            view_y = self.y_visible // 50 + 2
+
+            visibility_x_base = (chunkx - view_x) // 2
+            visibility_x_end   = (chunkx + view_x) // 2
+            visibility_y_base = (chunky - view_y) // 2
+            visibility_y_end   = (chunky + view_y) // 2
+
+            for gy in range(visibility_y_base, visibility_y_end):
+                for gx in range(visibility_x_base, visibility_x_end):
+                    block = self.chunk.get((gx, gy))
+                    if block:
+                        block.id = self.sw.create_image(
+                            block.x_debut,
+                            block.y_debut,
+                            image=block.textur,
+                            anchor="nw",
+                            tags=("render", "block"))
+
+    def blocs_autour(self, px, py):
+        gx = int(px // 50)
+        gy = int(py // 50)
+
+        voisins = []
+        for dy in (-1, 0, 1):
+            for dx in (-1, 0, 1):
+                bloc = self.chunk.get((gx + dx, gy + dy))
+                if bloc and bloc.type != "air":
+                    voisins.append(bloc)
+        return voisins
+
+    def deplacement_animation(self):
+        self.delai_frame = time.time()
+        self.walk_rightframe = [self.image_liste["steeve_walk1"],self.image_liste["steeve_walk2"],self.image_liste["steeve"]]
+        self.walk_leftframe = [self.image_liste["steeve_reverse_walk"],self.image_liste["steeve_reverse"]]
+        if self.etat["marche"] and (self.delai_frame - self.timing) >= self.delai_animation:
+                self.timing_animation = self.delai_frame
+                self.anim_index = (self.anim_index + 1) % max(1, len(self.walk_rightframe))
+
+        if self.etat["droite"]:
+            if self.etat["marche"]:
+                frame = self.walk_rightframe[self.anim_index % len(self.walk_rightframe)]
+            else:
+                frame = self.image_liste["steeve"]
+        else:
+            if self.etat["marche"]:
+                frame = self.walk_leftframe[self.anim_index % len(self.walk_leftframe)]
+            else:
+                frame = self.image_liste["steeve_reverse"]
+
+        if not self.etat["mine"]:
+            self.sw.itemconfig(self.joueur, image=frame)
+        self.after(100, self.deplacement_animation)
+
+    def casser_animation(self):
+        self.delai_frame_m = time.time()
+        self.mineframe_r = [self.image_liste["steeve_mine"],self.image_liste["steeve"]]
+        self.mineframe_l = [self.image_liste["steeve_mine_reverse"],self.image_liste["steeve_reverse"]]
+        delai_animation = 0.5
+        if self.etat["mine"] and (self.delai_frame_m - self.timing_animation) >= delai_animation:
+                self.timing_animation = self.delai_frame_m
+                self.anim_index_m = (self.anim_index_m + 1) % max(1, len(self.mineframe_r))
+
+        if self.etat["droite"]:
+            if self.etat["mine"]:
+                frame = self.mineframe_r[self.anim_index_m % len(self.mineframe_r)]
+            else:
+                frame = self.image_liste["steeve"]
+        else:
+            if self.etat["mine"]:
+                frame = self.mineframe_l[self.anim_index_m % len(self.mineframe_l)]
+            else:
+                frame = self.image_liste["steeve_reverse"]
+
+        self.sw.itemconfig(self.joueur, image=frame)
+        self.after(100, self.casser_animation)
+
+
+
+if __name__ == "__main__":
+    jeux = Python_Craft()
+    jeux.mainloop()
